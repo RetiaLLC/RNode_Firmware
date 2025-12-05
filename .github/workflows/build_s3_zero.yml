@@ -36,30 +36,20 @@ jobs:
           fi
           rm -f platformio.ini
 
-      - name: Inject Complete Board Definition
-        # This step fixes ALL missing variable errors (lock_byte, EEPROM, LEDs)
-        # by appending a complete definition block to Boards.h
+      - name: Patch Firmware Code
         run: |
           echo "Patching Radio Driver..."
           sed -i '/bool SX126x::begin/a \ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
-          echo "Removing Safety Checks..."
-          # Delete the line causing the "Unsupported Board" error completely
-          sed -i '/#error An unsupported ESP32 board/d' src/Boards.h
-          
-          echo "Injecting Variables..."
-          # We define the new ID at the top
-          sed -i '1i #define BOARD_S3_ZERO 0xFE' src/Boards.h
-          
-          # We append the Variables block at the end
-          sed -i '$d' src/Boards.h
-          cat <<EOT >> src/Boards.h
-          
-          #elif BOARD_MODEL == BOARD_S3_ZERO
+          echo "Injecting Board Definition..."
+          # 1. Create a file with our custom board block
+          # We use 0xFE as our custom ID
+          cat <<EOT > src/s3_zero_def.h
+          #elif BOARD_MODEL == 0xFE
             #include <EEPROM.h>
             #define PLATFORM_ESP32
             
-            // --- Hardware Pins ---
+            // Radio Pins (S3-Zero)
             #define PIN_LORA_SCK 13
             #define PIN_LORA_MISO 12
             #define PIN_LORA_MOSI 11
@@ -67,35 +57,34 @@ jobs:
             #define PIN_LORA_DIO_1 4
             #define PIN_LORA_BUSY 5
             #define PIN_LORA_RESET 6
+            
+            // LED Pins (Mapped to NeoPixel pin 21)
             #define PIN_LED_RX 21
             #define PIN_LED_TX 21
             
-            // --- Missing Globals (The Fix) ---
-            // These variables are usually declared for valid boards. 
-            // We declare them here to satisfy Utilities.h
-            uint8_t lock_byte;
-            #define INFO_LOCK_BYTE 0x00 
-            #define EEPROM_SIG_LEN 32
-            uint8_t dev_eeprom_signature[EEPROM_SIG_LEN];
-            
-            // --- LED Macros ---
+            // LED Macros (Standard GPIO)
             #define led_rx_on() digitalWrite(PIN_LED_RX, HIGH)
             #define led_rx_off() digitalWrite(PIN_LED_RX, LOW)
             #define led_tx_on() digitalWrite(PIN_LED_TX, HIGH)
             #define led_tx_off() digitalWrite(PIN_LED_TX, LOW)
-            #define led_indicate_error(x) 
-            #define led_indicate_boot_error() 
-            #define led_indicate_warning(x) 
-            #define led_indicate_info(x) 
-            #define led_indicate_standby() 
-            #define led_indicate_not_ready() 
             
+            // Globals required by Utilities.h
+            #define INFO_LOCK_BYTE 0x00 
+            #define EEPROM_SIG_LEN 32
             #define EEPROM_SIZE 512
-            
-          #endif
+            uint8_t lock_byte;
+            uint8_t dev_eeprom_signature[EEPROM_SIG_LEN];
+          
           EOT
           
-          echo "Injection Complete."
+          # 2. Insert this block BEFORE the error check
+          # This places it inside the #if/#elif/#else chain correctly
+          sed -i '/#error An unsupported ESP32 board/e cat src/s3_zero_def.h' src/Boards.h
+          
+          # 3. Now delete the error check line itself so it can't trigger
+          sed -i '/#error An unsupported ESP32 board/d' src/Boards.h
+          
+          echo "Patches applied."
 
       - name: Create S3-Zero Config
         run: |
@@ -111,6 +100,7 @@ jobs:
           framework = arduino
           monitor_speed = 115200
           
+          ; Memory Settings (QSPI)
           board_build.arduino.memory_type = qio_qspi
           board_build.flash_mode = qio
           board_build.psram_type = qio
@@ -126,10 +116,12 @@ jobs:
             -D ARDUINO_USB_DFU_ON_BOOT=0
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
+            
+            ; Custom ID to trigger our injected block
             -D BOARD_MODEL=0xFE
             -D RADIO_SX1262
             
-            ; NeoPixel Support (GPIO 21)
+            ; NeoPixel Support
             -D HAS_NEOPIXEL
             -D NEOPIXEL_COUNT=1
             -D NEOPIXEL_DATA=21
