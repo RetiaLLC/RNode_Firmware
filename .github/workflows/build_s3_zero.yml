@@ -22,12 +22,29 @@ jobs:
         run: pip install platformio
 
       - name: Prepare Project Structure
-        # Move files to 'src' to satisfy PlatformIO structure
+        # 1. Create standard PlatformIO folders
+        # 2. Move source code to 'src'
+        # 3. Move bundled libraries to 'lib' (Crucial Fix for Ed25519)
         run: |
           mkdir -p src
+          mkdir -p lib
+          
+          # Move main source files
           mv *.cpp *.h *.ino src/ || true
+          
+          # Move the bundled libraries (Ed25519, etc.) to where PIO expects them
+          if [ -d "Libraries" ]; then
+            mv Libraries/* lib/
+            echo "Moved bundled libraries to lib/"
+          fi
+          
           rm -f platformio.ini
-          ls -R src/
+          
+          # Debug: List files to ensure structure is correct
+          echo "--- SRC Listing ---"
+          ls src/
+          echo "--- LIB Listing ---"
+          ls lib/
 
       - name: Patch Firmware (The "Jailbreak")
         # 1. Force Radio Settings (1.8V TCXO, DIO2 Switch)
@@ -37,7 +54,6 @@ jobs:
           sed -i '/bool SX126x::begin/a \ \ // Custom Patch for S3-Zero\n\ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
           echo "Patching src/Boards.h to bypass safety check..."
-          # This replaces the specific #error line with a harmless warning
           sed -i 's/#error An unsupported ESP32 board/#warning Board check bypassed/g' src/Boards.h
           
           echo "Patches applied."
@@ -48,6 +64,7 @@ jobs:
           [platformio]
           default_envs = custom_s3_zero
           src_dir = src
+          lib_dir = lib
 
           [env:custom_s3_zero]
           platform = espressif32
@@ -75,7 +92,7 @@ jobs:
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
             
-            ; We use Generic ESP32 ID, but our patch allows it to compile
+            ; We use Generic ESP32 ID (0xFF)
             -D BOARD_ESP32_S3_GENERIC
             -D BOARD_MODEL=0xFF 
             -D RADIO_SX1262
