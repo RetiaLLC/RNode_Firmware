@@ -27,65 +27,28 @@ jobs:
           mkdir -p src
           mkdir -p lib
           
-          # Move main source files to src/
+          # Move Source
           find . -maxdepth 1 -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.ino" \) -exec mv {} src/ \;
           
-          # Move Libraries
+          # Move Libraries (Robust Method)
           if [ -d "Libraries" ]; then cp -r Libraries/* lib/ 2>/dev/null || true; fi
           if [ -d "libraries" ]; then cp -r libraries/* lib/ 2>/dev/null || true; fi
           
-          # Locate and move Ed25519 if it was missed
+          # Find and move Ed25519 if missed
           FOUND_FILE=$(find . -name "Ed25519.h" -print -quit)
           if [ -n "$FOUND_FILE" ]; then
             LIB_PATH=$(dirname "$FOUND_FILE")
-            # Avoid copying if already in lib
-            if [[ "$LIB_PATH" != *"lib"* ]]; then
-               cp -r "$LIB_PATH" lib/Ed25519_Lib
-            fi
+            if [[ "$LIB_PATH" != *"lib"* ]]; then cp -r "$LIB_PATH" lib/Ed25519_Lib; fi
           fi
           
           rm -f platformio.ini
 
-      - name: Patch Firmware (Jailbreak + Inject Definitions)
+      - name: Patch SX1262 Driver
+        # Force 1.8V TCXO (Critical for S3-Zero/SX1262 modules)
+        # We do this regardless of board selection
         run: |
           echo "Patching Radio Driver..."
-          sed -i '/bool SX126x::begin/a \ \ // Custom Patch for S3-Zero\n\ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
-          
-          echo "Patching Boards.h..."
-          # 1. Bypassing the error check
-          sed -i 's/#error An unsupported ESP32 board/#warning Board check bypassed/g' src/Boards.h
-          
-          # 2. Injecting the missing Headers and Macros directly into Boards.h
-          # We define the LED macros as empty "do {} while(0)" loops so they compile but do nothing.
-          # We explicitly include EEPROM.h.
-          cat <<EOT > src/header_inject.h
-          #include <Arduino.h>
-          #include <EEPROM.h>
-          
-          // Force definitions for S3-Zero Custom Build
-          #define PLATFORM_ESP32
-          
-          // Dummy LED pins (S3-Zero uses NeoPixel, so standard pins don't apply)
-          #define PIN_LED_RX 255
-          #define PIN_LED_TX 255
-          
-          // Dummy LED Macros to satisfy compiler
-          #define led_rx_on() do {} while(0)
-          #define led_rx_off() do {} while(0)
-          #define led_tx_on() do {} while(0)
-          #define led_tx_off() do {} while(0)
-          #define led_indicate_error(x) do {} while(0)
-          
-          // Define EEPROM size
-          #ifndef EEPROM_SIZE
-          #define EEPROM_SIZE 512
-          #endif
-          EOT
-          
-          # Prepend our injections to the top of Boards.h
-          cat src/header_inject.h src/Boards.h > src/Boards.tmp && mv src/Boards.tmp src/Boards.h
-          
-          echo "All Patches applied successfully."
+          sed -i '/bool SX126x::begin/a \ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
 
       - name: Create S3-Zero Config
         run: |
@@ -111,7 +74,6 @@ jobs:
           board_build.f_flash = 80000000L
           
           board_upload.flash_size = 4MB
-          board_upload.maximum_size = 4194304
           board_build.partitions = default.csv
           
           build_flags = 
@@ -121,13 +83,24 @@ jobs:
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
             
-            ; Define PLATFORM_ESP32 globally
-            -D PLATFORM_ESP32=0x80
+            ; --- IMPERSONATION MODE ---
+            ; We pretend to be a Heltec V3 (Supported S3 Board)
+            ; This loads all correct libraries (EEPROM, etc) automatically.
+            -D BOARD_HELTEC_LORA32_V3
             
-            ; Board IDs
-            -D BOARD_ESP32_S3_GENERIC
-            -D BOARD_MODEL=0xFF 
-            -D RADIO_SX1262
+            ; --- PIN OVERRIDES ---
+            ; We overwrite the Heltec pins with YOUR S3-Zero pins
+            -D PIN_LORA_SCK=13
+            -D PIN_LORA_MISO=12
+            -D PIN_LORA_MOSI=11
+            -D PIN_LORA_NSS=10
+            -D PIN_LORA_DIO_1=4
+            -D PIN_LORA_BUSY=5
+            -D PIN_LORA_RESET=6
+            
+            ; Dummy LED Pins (Heltec uses 35, we map to 21 or dummy)
+            -D PIN_LED_RX=21
+            -D PIN_LED_TX=21
             
           lib_deps = 
             adafruit/Adafruit SSD1306 @ ^2.5.7
