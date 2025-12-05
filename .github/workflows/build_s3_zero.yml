@@ -1,0 +1,96 @@
+name: Build RNode S3 Zero (Clean)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Official Firmware
+        uses: actions/checkout@v3
+        with:
+          repository: markqvist/RNode_Firmware
+          ref: master
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Restructure Project for PlatformIO
+        # 1. Create a 'src' directory
+        # 2. Move all source files (*.cpp, *.h, *.ino) into 'src'
+        # 3. Delete the old platformio.ini to avoid conflicts
+        run: |
+          mkdir src
+          mv *.cpp *.h *.ino src/
+          rm platformio.ini
+          ls -R src/  # Verify files are moved
+
+      - name: Patch SX1262 Driver
+        # Now we patch the file inside the new 'src' folder
+        # We also fix the filename case (sx126x.cpp)
+        run: |
+          echo "Patching src/sx126x.cpp..."
+          sed -i '/bool SX126x::begin/a \ \ // Custom Patch for S3-Zero\n\ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
+          echo "Patch applied."
+
+      - name: Create Clean Config
+        # A fresh config file with ONLY your board settings
+        run: |
+          cat <<'EOF' > platformio.ini
+          [platformio]
+          default_envs = custom_s3_zero
+          src_dir = src
+
+          [env:custom_s3_zero]
+          platform = espressif32
+          board = esp32-s3-devkitc-1
+          framework = arduino
+          monitor_speed = 115200
+          
+          ; --- CRITICAL MEMORY SETTINGS FOR S3-ZERO ---
+          ; Forces Quad SPI to match the S3-Zero hardware
+          board_build.arduino.memory_type = qio_qspi
+          board_build.flash_mode = qio
+          board_build.psram_type = qio
+          
+          ; Force MCU Specs
+          board_build.mcu = esp32s3
+          board_build.f_cpu = 240000000L
+          board_build.f_flash = 80000000L
+          
+          ; Partition & Size (4MB Flash)
+          board_upload.flash_size = 4MB
+          board_upload.maximum_size = 4194304
+          board_build.partitions = default.csv
+          
+          build_flags = 
+            -D ARDUINO_USB_CDC_ON_BOOT=1
+            -D ARDUINO_USB_MSC_ON_BOOT=0
+            -D ARDUINO_USB_DFU_ON_BOOT=0
+            -D ARDUINO_USB_MODE=1
+            -D ESP32S3
+            -D BOARD_ESP32_S3_GENERIC
+            -D BOARD_MODEL=0xFF 
+            -D RADIO_SX1262
+            
+          lib_deps = 
+            adafruit/Adafruit SSD1306 @ ^2.5.7
+            adafruit/Adafruit GFX Library @ ^1.11.5
+            adafruit/Adafruit BusIO @ ^1.14.1
+            adafruit/Adafruit NeoPixel @ ^1.11.0
+          EOF
+
+      - name: Build Firmware
+        run: pio run -e custom_s3_zero
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware_bin
+          path: .pio/build/custom_s3_zero/firmware.bin
