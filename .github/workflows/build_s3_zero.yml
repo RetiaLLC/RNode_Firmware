@@ -24,33 +24,47 @@ jobs:
       - name: Prepare Project Structure
         # 1. Create standard PlatformIO folders
         # 2. Move source code to 'src'
-        # 3. Move bundled libraries to 'lib' (Crucial Fix for Ed25519)
+        # 3. INTELLIGENTLY locate and move libraries
         run: |
           mkdir -p src
           mkdir -p lib
           
-          # Move main source files
-          mv *.cpp *.h *.ino src/ || true
+          # Move main source files (*.cpp, *.h, *.ino) to src/
+          # We exclude directories from this move to avoid moving libraries by accident
+          find . -maxdepth 1 -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.ino" \) -exec mv {} src/ \;
           
-          # Move the bundled libraries (Ed25519, etc.) to where PIO expects them
-          if [ -d "Libraries" ]; then
-            mv Libraries/* lib/
-            echo "Moved bundled libraries to lib/"
+          # LOCATE THE MISSING LIBRARY (Ed25519)
+          # We find where Ed25519.h is, and move that whole directory to lib/
+          ED_PATH=$(find . -name Ed25519.h | xargs dirname)
+          if [ -n "$ED_PATH" ]; then
+            echo "Found library at: $ED_PATH"
+            # If the header is in a subfolder (e.g., Libraries/Ed25519), move the parent container contents
+            # If it's just in 'Libraries', move the folder itself.
+            # Easiest way: Copy the folder containing the header into lib/
+            cp -r "$ED_PATH" lib/Ed25519_Lib
+            echo "Moved Ed25519 to lib/Ed25519_Lib"
+          else
+            echo "WARNING: Ed25519.h not found in repo!"
           fi
+
+          # Handle any other libs in 'Libraries' or 'libraries' folder
+          if [ -d "Libraries" ]; then cp -r Libraries/* lib/ 2>/dev/null || true; fi
+          if [ -d "libraries" ]; then cp -r libraries/* lib/ 2>/dev/null || true; fi
           
           rm -f platformio.ini
           
-          # Debug: List files to ensure structure is correct
+          # Debug: Verify structure
           echo "--- SRC Listing ---"
-          ls src/
+          ls -R src/
           echo "--- LIB Listing ---"
-          ls lib/
+          ls -R lib/
 
       - name: Patch Firmware (The "Jailbreak")
         # 1. Force Radio Settings (1.8V TCXO, DIO2 Switch)
         # 2. DELETE the "Unsupported Board" error check in Boards.h
         run: |
           echo "Patching src/sx126x.cpp..."
+          # Note: file is now in src/ because of the move above
           sed -i '/bool SX126x::begin/a \ \ // Custom Patch for S3-Zero\n\ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
           echo "Patching src/Boards.h to bypass safety check..."
@@ -108,6 +122,8 @@ jobs:
             adafruit/Adafruit GFX Library @ ^1.11.5
             adafruit/Adafruit BusIO @ ^1.14.1
             adafruit/Adafruit NeoPixel @ ^1.11.0
+            ; Add explicit crypto dependency just in case local move fails
+            rweather/Crypto @ ^0.4.0
           EOF
 
       - name: Build Firmware
