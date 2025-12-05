@@ -12,7 +12,7 @@ jobs:
         with:
           repository: markqvist/RNode_Firmware
           ref: master
-          submodules: recursive  # CRITICAL: Download libraries linked as submodules
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -28,41 +28,64 @@ jobs:
           mkdir -p lib
           
           # Move main source files to src/
-          # We use -maxdepth to avoid grabbing files from inside library folders
           find . -maxdepth 1 -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.ino" \) -exec mv {} src/ \;
           
-          # SAFETY CHECK: Find Ed25519.h without crashing if missing
-          # We use -print -quit to stop at the first match
-          FOUND_FILE=$(find . -name "Ed25519.h" -print -quit)
-          
-          if [ -n "$FOUND_FILE" ]; then
-            echo "Library header found at: $FOUND_FILE"
-            LIB_PATH=$(dirname "$FOUND_FILE")
-            # If the header is deep in a structure, we might want the parent of the parent
-            # But usually copying the container is enough.
-            cp -r "$LIB_PATH" lib/Ed25519_Lib
-            echo "Copied library to lib/Ed25519_Lib"
-          else
-            echo "WARNING: Ed25519.h NOT FOUND. Checking submodules or different paths..."
-            # Fallback: List root to see what we actually have
-            ls -R
-          fi
-
-          # Handle standard 'Libraries' folder if it exists (copy contents to lib/)
+          # Move Libraries
           if [ -d "Libraries" ]; then cp -r Libraries/* lib/ 2>/dev/null || true; fi
           if [ -d "libraries" ]; then cp -r libraries/* lib/ 2>/dev/null || true; fi
           
+          # Locate and move Ed25519 if it was missed
+          FOUND_FILE=$(find . -name "Ed25519.h" -print -quit)
+          if [ -n "$FOUND_FILE" ]; then
+            LIB_PATH=$(dirname "$FOUND_FILE")
+            # Avoid copying if already in lib
+            if [[ "$LIB_PATH" != *"lib"* ]]; then
+               cp -r "$LIB_PATH" lib/Ed25519_Lib
+            fi
+          fi
+          
           rm -f platformio.ini
 
-      - name: Patch Firmware (The "Jailbreak")
+      - name: Patch Firmware (Jailbreak + Inject Definitions)
         run: |
-          echo "Patching src/sx126x.cpp..."
+          echo "Patching Radio Driver..."
           sed -i '/bool SX126x::begin/a \ \ // Custom Patch for S3-Zero\n\ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
-          echo "Patching src/Boards.h to bypass safety check..."
+          echo "Patching Boards.h..."
+          # 1. Bypassing the error check
           sed -i 's/#error An unsupported ESP32 board/#warning Board check bypassed/g' src/Boards.h
           
-          echo "Patches applied."
+          # 2. Injecting the missing Headers and Macros directly into Boards.h
+          # We define the LED macros as empty "do {} while(0)" loops so they compile but do nothing.
+          # We explicitly include EEPROM.h.
+          cat <<EOT > src/header_inject.h
+          #include <Arduino.h>
+          #include <EEPROM.h>
+          
+          // Force definitions for S3-Zero Custom Build
+          #define PLATFORM_ESP32
+          
+          // Dummy LED pins (S3-Zero uses NeoPixel, so standard pins don't apply)
+          #define PIN_LED_RX 255
+          #define PIN_LED_TX 255
+          
+          // Dummy LED Macros to satisfy compiler
+          #define led_rx_on() do {} while(0)
+          #define led_rx_off() do {} while(0)
+          #define led_tx_on() do {} while(0)
+          #define led_tx_off() do {} while(0)
+          #define led_indicate_error(x) do {} while(0)
+          
+          // Define EEPROM size
+          #ifndef EEPROM_SIZE
+          #define EEPROM_SIZE 512
+          #endif
+          EOT
+          
+          # Prepend our injections to the top of Boards.h
+          cat src/header_inject.h src/Boards.h > src/Boards.tmp && mv src/Boards.tmp src/Boards.h
+          
+          echo "All Patches applied successfully."
 
       - name: Create S3-Zero Config
         run: |
@@ -78,7 +101,7 @@ jobs:
           framework = arduino
           monitor_speed = 115200
           
-          ; --- CRITICAL MEMORY SETTINGS ---
+          ; --- MEMORY SETTINGS (QSPI for S3-Zero) ---
           board_build.arduino.memory_type = qio_qspi
           board_build.flash_mode = qio
           board_build.psram_type = qio
@@ -98,23 +121,19 @@ jobs:
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
             
-            ; Generic ID + Jailbreak
+            ; Define PLATFORM_ESP32 globally
+            -D PLATFORM_ESP32=0x80
+            
+            ; Board IDs
             -D BOARD_ESP32_S3_GENERIC
             -D BOARD_MODEL=0xFF 
             -D RADIO_SX1262
-            
-            ; NeoPixel LED (GPIO 21)
-            -D HAS_NEOPIXEL
-            -D NEOPIXEL_COUNT=1
-            -D NEOPIXEL_DATA=21
-            -D NEOPIXEL_TYPE=NEO_GRB+NEO_KHZ800
             
           lib_deps = 
             adafruit/Adafruit SSD1306 @ ^2.5.7
             adafruit/Adafruit GFX Library @ ^1.11.5
             adafruit/Adafruit BusIO @ ^1.14.1
             adafruit/Adafruit NeoPixel @ ^1.11.0
-            ; Fallback Crypto lib in case local copy fails
             rweather/Crypto @ ^0.4.0
           EOF
 
