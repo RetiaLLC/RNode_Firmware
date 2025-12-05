@@ -12,6 +12,7 @@ jobs:
         with:
           repository: markqvist/RNode_Firmware
           ref: master
+          submodules: recursive  # CRITICAL: Download libraries linked as submodules
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -22,49 +23,40 @@ jobs:
         run: pip install platformio
 
       - name: Prepare Project Structure
-        # 1. Create standard PlatformIO folders
-        # 2. Move source code to 'src'
-        # 3. INTELLIGENTLY locate and move libraries
         run: |
           mkdir -p src
           mkdir -p lib
           
-          # Move main source files (*.cpp, *.h, *.ino) to src/
-          # We exclude directories from this move to avoid moving libraries by accident
+          # Move main source files to src/
+          # We use -maxdepth to avoid grabbing files from inside library folders
           find . -maxdepth 1 -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.ino" \) -exec mv {} src/ \;
           
-          # LOCATE THE MISSING LIBRARY (Ed25519)
-          # We find where Ed25519.h is, and move that whole directory to lib/
-          ED_PATH=$(find . -name Ed25519.h | xargs dirname)
-          if [ -n "$ED_PATH" ]; then
-            echo "Found library at: $ED_PATH"
-            # If the header is in a subfolder (e.g., Libraries/Ed25519), move the parent container contents
-            # If it's just in 'Libraries', move the folder itself.
-            # Easiest way: Copy the folder containing the header into lib/
-            cp -r "$ED_PATH" lib/Ed25519_Lib
-            echo "Moved Ed25519 to lib/Ed25519_Lib"
+          # SAFETY CHECK: Find Ed25519.h without crashing if missing
+          # We use -print -quit to stop at the first match
+          FOUND_FILE=$(find . -name "Ed25519.h" -print -quit)
+          
+          if [ -n "$FOUND_FILE" ]; then
+            echo "Library header found at: $FOUND_FILE"
+            LIB_PATH=$(dirname "$FOUND_FILE")
+            # If the header is deep in a structure, we might want the parent of the parent
+            # But usually copying the container is enough.
+            cp -r "$LIB_PATH" lib/Ed25519_Lib
+            echo "Copied library to lib/Ed25519_Lib"
           else
-            echo "WARNING: Ed25519.h not found in repo!"
+            echo "WARNING: Ed25519.h NOT FOUND. Checking submodules or different paths..."
+            # Fallback: List root to see what we actually have
+            ls -R
           fi
 
-          # Handle any other libs in 'Libraries' or 'libraries' folder
+          # Handle standard 'Libraries' folder if it exists (copy contents to lib/)
           if [ -d "Libraries" ]; then cp -r Libraries/* lib/ 2>/dev/null || true; fi
           if [ -d "libraries" ]; then cp -r libraries/* lib/ 2>/dev/null || true; fi
           
           rm -f platformio.ini
-          
-          # Debug: Verify structure
-          echo "--- SRC Listing ---"
-          ls -R src/
-          echo "--- LIB Listing ---"
-          ls -R lib/
 
       - name: Patch Firmware (The "Jailbreak")
-        # 1. Force Radio Settings (1.8V TCXO, DIO2 Switch)
-        # 2. DELETE the "Unsupported Board" error check in Boards.h
         run: |
           echo "Patching src/sx126x.cpp..."
-          # Note: file is now in src/ because of the move above
           sed -i '/bool SX126x::begin/a \ \ // Custom Patch for S3-Zero\n\ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
           echo "Patching src/Boards.h to bypass safety check..."
@@ -106,7 +98,7 @@ jobs:
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
             
-            ; We use Generic ESP32 ID (0xFF)
+            ; Generic ID + Jailbreak
             -D BOARD_ESP32_S3_GENERIC
             -D BOARD_MODEL=0xFF 
             -D RADIO_SX1262
@@ -122,7 +114,7 @@ jobs:
             adafruit/Adafruit GFX Library @ ^1.11.5
             adafruit/Adafruit BusIO @ ^1.14.1
             adafruit/Adafruit NeoPixel @ ^1.11.0
-            ; Add explicit crypto dependency just in case local move fails
+            ; Fallback Crypto lib in case local copy fails
             rweather/Crypto @ ^0.4.0
           EOF
 
