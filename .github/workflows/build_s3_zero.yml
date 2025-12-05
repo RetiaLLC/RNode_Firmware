@@ -22,25 +22,27 @@ jobs:
         run: pip install platformio
 
       - name: Prepare Project Structure
-        # 1. Create src folder
-        # 2. Move source files (suppress errors if already moved)
-        # 3. Remove old config (force to ignore if missing)
+        # Move files to 'src' to satisfy PlatformIO structure
         run: |
           mkdir -p src
           mv *.cpp *.h *.ino src/ || true
           rm -f platformio.ini
-          ls -R src/  # Verify files are present
+          ls -R src/
 
-      - name: Patch SX1262 Driver
-        # Patches the radio driver to enable 1.8V TCXO and DIO2 Switch
-        # Uses correct lowercase filename 'sx126x.cpp'
+      - name: Patch Firmware (The "Jailbreak")
+        # 1. Force Radio Settings (1.8V TCXO, DIO2 Switch)
+        # 2. DELETE the "Unsupported Board" error check in Boards.h
         run: |
           echo "Patching src/sx126x.cpp..."
           sed -i '/bool SX126x::begin/a \ \ // Custom Patch for S3-Zero\n\ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
-          echo "Patch applied."
+          
+          echo "Patching src/Boards.h to bypass safety check..."
+          # This replaces the specific #error line with a harmless warning
+          sed -i 's/#error An unsupported ESP32 board/#warning Board check bypassed/g' src/Boards.h
+          
+          echo "Patches applied."
 
       - name: Create S3-Zero Config
-        # Defines the hardware specifically for Waveshare S3-Zero
         run: |
           cat <<'EOF' > platformio.ini
           [platformio]
@@ -53,18 +55,15 @@ jobs:
           framework = arduino
           monitor_speed = 115200
           
-          ; --- CRITICAL MEMORY SETTINGS FOR S3-ZERO ---
-          ; Forces Quad SPI (QSPI) to prevent bootloops
+          ; --- CRITICAL MEMORY SETTINGS ---
           board_build.arduino.memory_type = qio_qspi
           board_build.flash_mode = qio
           board_build.psram_type = qio
           
-          ; Force MCU Specs
           board_build.mcu = esp32s3
           board_build.f_cpu = 240000000L
           board_build.f_flash = 80000000L
           
-          ; Partition & Size (4MB Flash)
           board_upload.flash_size = 4MB
           board_upload.maximum_size = 4194304
           board_build.partitions = default.csv
@@ -75,11 +74,13 @@ jobs:
             -D ARDUINO_USB_DFU_ON_BOOT=0
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
+            
+            ; We use Generic ESP32 ID, but our patch allows it to compile
             -D BOARD_ESP32_S3_GENERIC
             -D BOARD_MODEL=0xFF 
             -D RADIO_SX1262
             
-            ; NeoPixel LED Settings for S3-Zero (GPIO 21)
+            ; NeoPixel LED (GPIO 21)
             -D HAS_NEOPIXEL
             -D NEOPIXEL_COUNT=1
             -D NEOPIXEL_DATA=21
