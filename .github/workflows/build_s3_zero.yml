@@ -26,77 +26,66 @@ jobs:
         run: |
           mkdir -p src
           mkdir -p lib
-          
-          # Move main source files
           find . -maxdepth 1 -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.ino" \) -exec mv {} src/ \;
-          
-          # Move Libraries (Robust check)
           if [ -d "Libraries" ]; then cp -r Libraries/* lib/ 2>/dev/null || true; fi
           if [ -d "libraries" ]; then cp -r libraries/* lib/ 2>/dev/null || true; fi
-          
-          # Find and move Ed25519 if missed
           FOUND_FILE=$(find . -name "Ed25519.h" -print -quit)
           if [ -n "$FOUND_FILE" ]; then
             LIB_PATH=$(dirname "$FOUND_FILE")
             if [[ "$LIB_PATH" != *"lib"* ]]; then cp -r "$LIB_PATH" lib/Ed25519_Lib; fi
           fi
-          
           rm -f platformio.ini
 
-      - name: Patch Firmware Code
-        # This step manually writes the missing definitions into Boards.h
-        # so the compiler has everything it needs (Pins, EEPROM, LEDs)
+      - name: Inject Custom Board Definition
+        # We append a brand new board definition (ID 0xFE) to Boards.h
+        # This gives the compiler valid pins, includes, and macros without breaking syntax.
         run: |
           echo "Patching Radio Driver..."
           sed -i '/bool SX126x::begin/a \ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
-          echo "Jailbreaking Boards.h (Removing error check)..."
-          sed -i 's/#error An unsupported ESP32 board/#warning Board check bypassed/g' src/Boards.h
+          echo "Injecting S3-Zero Definition..."
+          # 1. Define the new ID
+          sed -i '1i #define BOARD_S3_ZERO 0xFE' src/Boards.h
           
-          echo "Injecting Definitions into Boards.h..."
-          # We create a header file with the missing definitions
-          cat <<EOT > src/injected_defs.h
-          #include <Arduino.h>
-          #include <EEPROM.h>
+          # 2. Append the board logic to the end of Boards.h (before the last #endif)
+          # We remove the last line (#endif), append our block, then add #endif back
+          sed -i '$d' src/Boards.h
           
-          // Force S3 Platform
-          #ifndef PLATFORM_ESP32
-          #define PLATFORM_ESP32 0x80
-          #endif
+          cat <<EOT >> src/Boards.h
           
-          // Force Generic Board Model
-          #define BOARD_ESP32_S3_GENERIC
-          
-          // Define missing LED variables as macros to pin 21 (NeoPixel)
-          // This prevents "not declared" errors in Utilities.h
-          #define pin_led_rx 21
-          #define pin_led_tx 21
-          #define PIN_LED_RX 21
-          #define PIN_LED_TX 21
-          
-          // Dummy out complex LED functions to prevent linking errors
-          // (Your device will boot, but advanced error patterns won't blink)
-          #define led_rx_on() 
-          #define led_rx_off() 
-          #define led_tx_on() 
-          #define led_tx_off() 
-          #define led_indicate_error(x) 
-          #define led_indicate_boot_error() 
-          #define led_indicate_warning(x) 
-          #define led_indicate_info(x) 
-          #define led_indicate_standby() 
-          #define led_indicate_not_ready() 
-          
-          // Ensure EEPROM size is set
-          #ifndef EEPROM_SIZE
-          #define EEPROM_SIZE 512
+          #elif BOARD_MODEL == BOARD_S3_ZERO
+            #include <EEPROM.h>
+            #define PLATFORM_ESP32
+            
+            // Radio Pins (S3-Zero Custom)
+            #define PIN_LORA_SCK 13
+            #define PIN_LORA_MISO 12
+            #define PIN_LORA_MOSI 11
+            #define PIN_LORA_NSS 10
+            #define PIN_LORA_DIO_1 4
+            #define PIN_LORA_BUSY 5
+            #define PIN_LORA_RESET 6
+            
+            // LED Pins (NeoPixel on 21)
+            // We map generic LEDs to the NeoPixel pin. 
+            // Note: Native RNode firmware handles NeoPixels differently, 
+            // but this mapping ensures the code compiles.
+            #define PIN_LED_RX 21
+            #define PIN_LED_TX 21
+            
+            // LED Macros (Standard GPIO control)
+            #define led_rx_on() digitalWrite(PIN_LED_RX, HIGH)
+            #define led_rx_off() digitalWrite(PIN_LED_RX, LOW)
+            #define led_tx_on() digitalWrite(PIN_LED_TX, HIGH)
+            #define led_tx_off() digitalWrite(PIN_LED_TX, LOW)
+            
+            // EEPROM
+            #define EEPROM_SIZE 512
+            
           #endif
           EOT
           
-          # Prepend our injected definitions to the top of Boards.h
-          cat src/injected_defs.h src/Boards.h > src/Boards.tmp && mv src/Boards.tmp src/Boards.h
-          
-          echo "Patches applied."
+          echo "Board definition injected."
 
       - name: Create S3-Zero Config
         run: |
@@ -112,7 +101,7 @@ jobs:
           framework = arduino
           monitor_speed = 115200
           
-          ; --- MEMORY SETTINGS (QSPI for S3-Zero) ---
+          ; --- MEMORY SETTINGS ---
           board_build.arduino.memory_type = qio_qspi
           board_build.flash_mode = qio
           board_build.psram_type = qio
@@ -120,7 +109,6 @@ jobs:
           board_build.mcu = esp32s3
           board_build.f_cpu = 240000000L
           board_build.f_flash = 80000000L
-          
           board_upload.flash_size = 4MB
           board_build.partitions = default.csv
           
@@ -131,11 +119,11 @@ jobs:
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
             
-            ; Use Fake ID to trigger our injected definitions
-            -D BOARD_MODEL=0xFF 
+            ; Use our Custom ID (0xFE)
+            -D BOARD_MODEL=0xFE
             -D RADIO_SX1262
             
-            ; NeoPixel Settings
+            ; NeoPixel Support
             -D HAS_NEOPIXEL
             -D NEOPIXEL_COUNT=1
             -D NEOPIXEL_DATA=21
