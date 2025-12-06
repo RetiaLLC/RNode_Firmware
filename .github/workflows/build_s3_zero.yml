@@ -41,18 +41,18 @@ jobs:
           echo "1. Patching Radio Driver (1.8V TCXO)..."
           sed -i '/bool SX126x::begin/a \ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
-          echo "2. creating S3-Zero Header (Declarations Only)..."
-          # This header contains MACROS and EXTERN declarations. No variables created here.
+          echo "2. creating S3-Zero Header..."
+          # This header provides ONLY what is missing, preventing conflicts.
           cat <<EOT > src/s3_zero_def.h
             #include <Arduino.h>
             #include <EEPROM.h>
             
-            // Platform
+            // --- Platform Definitions ---
             #ifndef PLATFORM_ESP32
             #define PLATFORM_ESP32 0x80
             #endif
             
-            // Pins
+            // --- Hardware Pins (S3-Zero) ---
             #define PIN_LORA_SCK 13
             #define PIN_LORA_MISO 12
             #define PIN_LORA_MOSI 11
@@ -61,38 +61,35 @@ jobs:
             #define PIN_LORA_BUSY 5
             #define PIN_LORA_RESET 6
             
-            // LED Mapping (NeoPixel Pin)
+            // --- LED Pins ---
+            // Defining these allows Utilities.h to compile its functions normally.
+            // We map them to the NeoPixel pin (21) so the code has a valid pin to target.
             #define PIN_LED_RX 21
             #define PIN_LED_TX 21
             #define PIN_LED_STATUS 21
             
-            // LED Macros
+            // --- Helper Macros ---
+            // Standard LED control macros required by the firmware
             #define led_rx_on() digitalWrite(PIN_LED_RX, HIGH)
             #define led_rx_off() digitalWrite(PIN_LED_RX, LOW)
             #define led_tx_on() digitalWrite(PIN_LED_TX, HIGH)
             #define led_tx_off() digitalWrite(PIN_LED_TX, LOW)
-            #define led_indicate_error(x) 
-            #define led_indicate_boot_error() 
-            #define led_indicate_warning(x) 
-            #define led_indicate_info(x) 
-            #define led_indicate_standby() 
-            #define led_indicate_not_ready() 
             
-            // Globals (Externally linked, defined in .ino)
-            #define INFO_LOCK_BYTE 0x00 
+            // --- Missing Globals ---
+            // Only declare 'extern' here. We define it in the .ino file.
+            extern uint8_t lock_byte;
+            
             #ifndef EEPROM_SIZE
             #define EEPROM_SIZE 512
             #endif
-            
-            extern uint8_t lock_byte;
           EOT
           
           echo "3. Injecting Header into Boards.h..."
-          # Replace the error line with our include
+          # Replaces the error check with our include
           sed -i 's|#error An unsupported ESP32 board was selected. Cannot compile RNode firmware.|#include "s3_zero_def.h"|' src/Boards.h
           
-          echo "4. Defining Globals in Main Source..."
-          # We define 'lock_byte' in the main file so it exists in memory exactly once.
+          echo "4. Defining Missing Globals..."
+          # We inject the actual creation of 'lock_byte' into the main source file
           sed -i '1i uint8_t lock_byte = 0;' src/RNode_Firmware.ino
           
           echo "Patches applied."
@@ -111,6 +108,7 @@ jobs:
           framework = arduino
           monitor_speed = 115200
           
+          ; --- MEMORY SETTINGS ---
           board_build.arduino.memory_type = qio_qspi
           board_build.flash_mode = qio
           board_build.psram_type = qio
@@ -126,9 +124,13 @@ jobs:
             -D ARDUINO_USB_DFU_ON_BOOT=0
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
+            
+            ; Use Fake ID (0xFE) to trigger our custom header logic
             -D BOARD_ESP32_S3_GENERIC
             -D BOARD_MODEL=0xFE 
             -D RADIO_SX1262
+            
+            ; NeoPixel Support (just in case we want to use it later)
             -D HAS_NEOPIXEL
             -D NEOPIXEL_COUNT=1
             -D NEOPIXEL_DATA=21
