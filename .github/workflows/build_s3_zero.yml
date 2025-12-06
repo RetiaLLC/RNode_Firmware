@@ -36,20 +36,20 @@ jobs:
           fi
           rm -f platformio.ini
 
-      - name: Patch Firmware Code
+      - name: Patch Firmware (Trojan Horse Method)
         run: |
           echo "Patching Radio Driver..."
           sed -i '/bool SX126x::begin/a \ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
-          echo "Injecting Board Definition..."
-          # 1. Create a file with our custom board block
-          # We use 0xFE as our custom ID
+          echo "Creating S3-Zero Definition Header..."
+          # This file contains all the missing pieces the compiler was complaining about
           cat <<EOT > src/s3_zero_def.h
-          #elif BOARD_MODEL == 0xFE
+            #include <Arduino.h>
             #include <EEPROM.h>
+            
             #define PLATFORM_ESP32
             
-            // Radio Pins (S3-Zero)
+            // --- Hardware Pins (S3-Zero) ---
             #define PIN_LORA_SCK 13
             #define PIN_LORA_MISO 12
             #define PIN_LORA_MOSI 11
@@ -58,31 +58,38 @@ jobs:
             #define PIN_LORA_BUSY 5
             #define PIN_LORA_RESET 6
             
-            // LED Pins (Mapped to NeoPixel pin 21)
+            // --- LED Pins (NeoPixel on 21) ---
             #define PIN_LED_RX 21
             #define PIN_LED_TX 21
             
-            // LED Macros (Standard GPIO)
+            // --- LED Macros ---
             #define led_rx_on() digitalWrite(PIN_LED_RX, HIGH)
             #define led_rx_off() digitalWrite(PIN_LED_RX, LOW)
             #define led_tx_on() digitalWrite(PIN_LED_TX, HIGH)
             #define led_tx_off() digitalWrite(PIN_LED_TX, LOW)
+            #define led_indicate_error(x) 
+            #define led_indicate_boot_error() 
+            #define led_indicate_warning(x) 
+            #define led_indicate_info(x) 
+            #define led_indicate_standby() 
+            #define led_indicate_not_ready() 
             
-            // Globals required by Utilities.h
+            // --- Globals for Utilities.h ---
             #define INFO_LOCK_BYTE 0x00 
             #define EEPROM_SIG_LEN 32
+            #ifndef EEPROM_SIZE
             #define EEPROM_SIZE 512
+            #endif
+            
+            // These variables must be declared here to be visible to the rest of the code
             uint8_t lock_byte;
             uint8_t dev_eeprom_signature[EEPROM_SIG_LEN];
-          
           EOT
           
-          # 2. Insert this block BEFORE the error check
-          # This places it inside the #if/#elif/#else chain correctly
-          sed -i '/#error An unsupported ESP32 board/e cat src/s3_zero_def.h' src/Boards.h
-          
-          # 3. Now delete the error check line itself so it can't trigger
-          sed -i '/#error An unsupported ESP32 board/d' src/Boards.h
+          echo "Injecting Header into Boards.h..."
+          # We replace the specific error line with an include to our new file.
+          # This inserts our code INSIDE the existing #else block, which is valid C++.
+          sed -i 's|#error An unsupported ESP32 board was selected. Cannot compile RNode firmware.|#include "s3_zero_def.h"|' src/Boards.h
           
           echo "Patches applied."
 
@@ -100,7 +107,7 @@ jobs:
           framework = arduino
           monitor_speed = 115200
           
-          ; Memory Settings (QSPI)
+          ; --- MEMORY SETTINGS ---
           board_build.arduino.memory_type = qio_qspi
           board_build.flash_mode = qio
           board_build.psram_type = qio
@@ -117,8 +124,9 @@ jobs:
             -D ARDUINO_USB_MODE=1
             -D ESP32S3
             
-            ; Custom ID to trigger our injected block
-            -D BOARD_MODEL=0xFE
+            ; Use Fake ID (0xFE) to trigger the #else block we patched
+            -D BOARD_ESP32_S3_GENERIC
+            -D BOARD_MODEL=0xFE 
             -D RADIO_SX1262
             
             ; NeoPixel Support
