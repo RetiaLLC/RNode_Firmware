@@ -42,12 +42,20 @@ jobs:
           sed -i '/bool SX126x::begin/a \ \ dio3TcxoVoltage = 1.8;\n\ \ useDio2AsRfSwitch = true;' src/sx126x.cpp
           
           echo "Creating S3-Zero Definition Header..."
-          # This file contains all the missing pieces the compiler was complaining about
+          # This header provides exactly what the compiler is missing, matching the firmware's expected types.
           cat <<EOT > src/s3_zero_def.h
             #include <Arduino.h>
             #include <EEPROM.h>
             
-            #define PLATFORM_ESP32
+            // --- Platform Definitions ---
+            // We verify if they exist before defining to avoid "Redefined" warnings
+            #ifndef PLATFORM_ESP32
+            #define PLATFORM_ESP32 0x80
+            #endif
+            
+            #ifndef PLATFORM
+            #define PLATFORM PLATFORM_ESP32
+            #endif
             
             // --- Hardware Pins (S3-Zero) ---
             #define PIN_LORA_SCK 13
@@ -58,37 +66,39 @@ jobs:
             #define PIN_LORA_BUSY 5
             #define PIN_LORA_RESET 6
             
-            // --- LED Pins (NeoPixel on 21) ---
-            #define PIN_LED_RX 21
-            #define PIN_LED_TX 21
+            // --- LED Pins ---
+            // We declare these as variables because Utilities.h expects to read them
+            const int pin_led_rx = 21;
+            const int pin_led_tx = 21;
+            const int pin_led_status = 21;
             
-            // --- LED Macros ---
-            #define led_rx_on() digitalWrite(PIN_LED_RX, HIGH)
-            #define led_rx_off() digitalWrite(PIN_LED_RX, LOW)
-            #define led_tx_on() digitalWrite(PIN_LED_TX, HIGH)
-            #define led_tx_off() digitalWrite(PIN_LED_TX, LOW)
-            #define led_indicate_error(x) 
-            #define led_indicate_boot_error() 
-            #define led_indicate_warning(x) 
-            #define led_indicate_info(x) 
-            #define led_indicate_standby() 
-            #define led_indicate_not_ready() 
+            // --- Helper Macros ---
+            // We only define these if they don't conflict with functions
+            #define led_rx_on() digitalWrite(pin_led_rx, HIGH)
+            #define led_rx_off() digitalWrite(pin_led_rx, LOW)
+            #define led_tx_on() digitalWrite(pin_led_tx, HIGH)
+            #define led_tx_off() digitalWrite(pin_led_tx, LOW)
             
-            // --- Globals for Utilities.h ---
+            // --- Globals/Memory ---
             #define INFO_LOCK_BYTE 0x00 
-            #define EEPROM_SIG_LEN 32
+            
+            // Match the size expected by Device.h (128) to prevent conflict errors
+            #ifdef EEPROM_SIG_LEN
+            #undef EEPROM_SIG_LEN
+            #endif
+            #define EEPROM_SIG_LEN 128
+            
             #ifndef EEPROM_SIZE
             #define EEPROM_SIZE 512
             #endif
             
-            // These variables must be declared here to be visible to the rest of the code
+            // Declare global variables required by Utilities.h
             uint8_t lock_byte;
             uint8_t dev_eeprom_signature[EEPROM_SIG_LEN];
           EOT
           
           echo "Injecting Header into Boards.h..."
-          # We replace the specific error line with an include to our new file.
-          # This inserts our code INSIDE the existing #else block, which is valid C++.
+          # Replace the error line with our include.
           sed -i 's|#error An unsupported ESP32 board was selected. Cannot compile RNode firmware.|#include "s3_zero_def.h"|' src/Boards.h
           
           echo "Patches applied."
