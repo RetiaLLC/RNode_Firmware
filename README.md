@@ -144,3 +144,50 @@ The RNode Ecosystem is free and non-proprietary, and actively seeks to distribut
 If you distribute or modify this work, you **must** adhere to the terms of the GPLv3, including, but not limited to, providing up-to-date source code upon distribution, displaying appropriate copyright and license notices in prominent positions of all conveyed works, and making users aware of their rights to the software under the GPLv3.
 
 In practice, this means that you can use the firmware commercially, but you must understand your obligation to provide all future users of the system with the same rights, that you have been provided by the GPLv3. If you intend using the RNode Firmware commercially, it is worth reading [this page](https://unsigned.io/sell_rnodes.html).
+
+
+# Ben's Nibble Notes
+
+## Files I modified
+These were required
+ - Boards.h
+ - Makefile
+ - Utilities.h
+ - README.md
+
+
+## Dependencies to install
+- `arduino-cli`:  https://arduino.github.io/arduino-cli/0.20/installation/
+- `rns` (includes `rnodeconf`): `pip install rns`
+
+## Compiling, flashing, configuring
+```bash
+# Compile
+# This puts the binaries in ./build/esp32.esp32.esp32s3/
+$ make firmware-retia_nibble
+
+# Change /dev/ttyACM0 to whatever the nibble appears on your computer
+# Erase flash
+$ esptool --chip=esp32s3 --port=/dev/ttyACM0 erase_flash
+
+# Write to flash
+$ esptool -p /dev/ttyACM0 --chip=esp32s3 --before default_reset --after hard_reset write_flash --flash_size 4MB --flash_mode keep --verify 0x0 ./build/esp32.esp32.esp32s3/RNode_Firmware.ino.bootloader.bin 0x10000 ./build/esp32.esp32.esp32s3/RNode_Firmware.ino.bin
+
+# Or this may work, I'm not sure, it's a cleaner command
+$ make upload-retia_nibble
+
+# Check if it's running the firmware by reading the node info
+$ rnodeconf --info /dev/ttyACM0
+
+# Generate a new key for the nibble
+$ rnodeconf -k
+
+# Configure the EEPROM in the rnode
+# You have to generate and write the key first or this won't write to EEPROM
+# -r = write EEPROM
+# --product f0 = PRODUCT_HMBRW
+# --model fe = unspecified custom model
+# --hwrev 01 = arbitrary revision number
+# --platform 0x80 = esp32
+$ rnodeconf -r /dev/ttyACM0 --product f0 --model fe --hwrev 01 --platform 0x80
+```
