@@ -176,6 +176,8 @@ $ esptool -p /dev/ttyACM0 --chip=esp32s3 --before default_reset --after hard_res
 # Or this may work, I'm not sure, it's a cleaner command
 $ make upload-retia_nibble
 
+# You may need to run esptool erase_flash and esptool write_flash a few times back to back. You should see the neopixel on the ESP32 board slowly pulsing red if it boots
+
 # Check if it's running the firmware by reading the node info
 $ rnodeconf --info /dev/ttyACM0
 
