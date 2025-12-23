@@ -1667,6 +1667,8 @@ bool eeprom_model_valid() {
 	if (model == MODEL_FF) {
 	#elif BOARD_MODEL == BOARD_GENERIC_ESP32
 	if (model == MODEL_FF || model == MODEL_FE) {
+	#elif BOARD_MODEL == BOARD_RETIA_NIBBLE
+	if (model == MODEL_FF || model == MODEL_FE) {
 	#else
 	if (false) {
 	#endif

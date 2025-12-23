@@ -716,15 +716,15 @@
       #define HAS_DISPLAY false
       #define HAS_BLUETOOTH false
       #define HAS_BLE true
-      #define HAS_CONSOLE false
+      #define HAS_CONSOLE true
       #define HAS_PMU false
       #define HAS_NP true
       #define HAS_SD false
-      #define HAS_TCXO false
+      #define HAS_TCXO true
       #define HAS_BUSY true
       #define HAS_INPUT true
       #define HAS_SLEEP false
-      #define DIO2_AS_RF_SWITCH false
+      #define DIO2_AS_RF_SWITCH true
       #define CONFIG_UART_BUFFER_SIZE 6144
       #define CONFIG_QUEUE_SIZE 6144
       #define CONFIG_QUEUE_MAX_LENGTH 200
@@ -745,7 +745,9 @@
       // LED
       const int pin_led_rx = 39;
       const int pin_led_tx = 39;
-      const int pin_np = 21;
+      #define ESP32_NP_PIN 21
+      #define NIBBLE_NP_PIN 17
+      const int pin_np = ESP32_NP_PIN;
 
       // pins for buttons on Retia Nibble
       const int pin_btn_usr1 = 1;
@@ -756,8 +758,8 @@
       #define HAS_EEPROM true
       #define HAS_DISPLAY false
       #define HAS_BLUETOOTH false
-      #define HAS_BLE false
-      #define HAS_CONSOLE false
+      #define HAS_BLE true
+      #define HAS_CONSOLE true
       #define HAS_PMU false
       #define HAS_NP false
       #define HAS_SD false

@@ -173,7 +173,7 @@ $ esptool --chip=esp32s3 --port=/dev/ttyACM0 erase_flash
 # Write to flash
 $ esptool -p /dev/ttyACM0 --chip=esp32s3 --before default_reset --after hard_reset write_flash --flash_size 4MB --flash_mode keep --verify 0x0 ./build/esp32.esp32.esp32s3/RNode_Firmware.ino.bootloader.bin 0x10000 ./build/esp32.esp32.esp32s3/RNode_Firmware.ino.bin
 
-# Or this may work, I'm not sure, it's a cleaner command
+# Then write again, but with different settings. This errors if you don't do the esptool first, but the firmware won't boot unless you use arduino-cli in here.
 $ make upload-retia_nibble
 
 # You may need to run esptool erase_flash and esptool write_flash a few times back to back. You should see the neopixel on the ESP32 board slowly pulsing red if it boots
@@ -181,11 +181,12 @@ $ make upload-retia_nibble
 # Check if it's running the firmware by reading the node info
 $ rnodeconf --info /dev/ttyACM0
 
-# Generate a new key for the nibble
+# Generate a new key for the nibble, maybe necessary.
 $ rnodeconf -k
 
 # Configure the EEPROM in the rnode
 # You have to generate and write the key first or this won't write to EEPROM
+# The values here need to match values compiled into firmware.
 # -r = write EEPROM
 # --product f0 = PRODUCT_HMBRW
 # --model fe = unspecified custom model
