@@ -74,6 +74,13 @@ void setup() {
       digitalWrite(DISPLAY_CS, HIGH);
 
       pinMode(DISPLAY_BL_PIN, OUTPUT);
+    #elif BOARD_MODEL == BOARD_RETIA_DCBADGE
+      // Park the other chip selects on the shared SPI bus
+      // (TFT CS 47, SD CS 39, touch CS 14) so those chips
+      // stay off the bus while the radio uses CS 48
+      pinMode(47, OUTPUT); digitalWrite(47, HIGH);
+      pinMode(39, OUTPUT); digitalWrite(39, HIGH);
+      pinMode(14, OUTPUT); digitalWrite(14, HIGH);
     #endif
   #endif
 
