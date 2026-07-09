@@ -762,7 +762,13 @@
       #define IS_ESP32S3 true
       #define MODEM SX1276
       #define HAS_EEPROM true
-      #define HAS_DISPLAY false
+      // Build with -DRETIA_DCBADGE_TFT for the ILI9341 status display variant
+      #if defined(RETIA_DCBADGE_TFT)
+        #define HAS_DISPLAY true
+        #define DISPLAY_SCALE 2
+      #else
+        #define HAS_DISPLAY false
+      #endif
       #define HAS_BLUETOOTH false
       #define HAS_BLE true
       #define HAS_CONSOLE true
@@ -801,6 +807,11 @@
 
       // Button A (SW8), active low
       const int pin_btn_usr1 = 8;
+
+      // ILI9341 TFT on the shared SPI bus (TFT variant only)
+      const int DISPLAY_CS = 47;
+      const int DISPLAY_DC = 40;
+      const int DISPLAY_RST = 41;
 
     #elif BOARD_MODEL == BOARD_HAD_COMM
       #define IS_ESP32S3 true

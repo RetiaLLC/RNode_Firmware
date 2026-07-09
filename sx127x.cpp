@@ -165,7 +165,14 @@ int sx127x::begin(long frequency) {
   return 1;
 }
 
-void sx127x::end() { sleep(); SPI.end(); _preinit_done = false; }
+void sx127x::end() {
+  sleep();
+  #if !(BOARD_MODEL == BOARD_RETIA_DCBADGE && HAS_DISPLAY)
+    // Keep the bus alive on boards where the display shares SPI
+    SPI.end();
+  #endif
+  _preinit_done = false;
+}
 
 int sx127x::beginPacket(int implicitHeader) {
   standby();
