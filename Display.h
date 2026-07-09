@@ -104,6 +104,18 @@
   #define SCL_OLED 7
   #define SDA_OLED 8
   #define DISP_CUSTOM_ADDR true
+#elif BOARD_MODEL == BOARD_RETIA_NIBBLE_OG
+  #define DISP_RST -1
+  #define DISP_ADDR 0x3C
+  #define SCL_OLED 10
+  #define SDA_OLED 11
+  #define DISP_CUSTOM_ADDR true
+#elif BOARD_MODEL == BOARD_RETIA_NIBBLE_CONNECT || BOARD_MODEL == BOARD_RETIA_NIBBLE_SCONNECT
+  #define DISP_RST -1
+  #define DISP_ADDR 0x3C
+  #define SCL_OLED 7
+  #define SDA_OLED 8
+  #define DISP_CUSTOM_ADDR true
 #else
   #define DISP_RST -1
   #define DISP_ADDR 0x3C
@@ -352,7 +364,7 @@ bool display_init() {
       Wire.begin(SDA_OLED, SCL_OLED);
     #elif BOARD_MODEL == BOARD_XIAO_S3
       Wire.begin(SDA_OLED, SCL_OLED);
-    #elif BOARD_MODEL == BOARD_RETIA_NIBBLE
+    #elif BOARD_MODEL == BOARD_RETIA_NIBBLE || BOARD_MODEL == BOARD_RETIA_NIBBLE_OG || BOARD_MODEL == BOARD_RETIA_NIBBLE_CONNECT || BOARD_MODEL == BOARD_RETIA_NIBBLE_SCONNECT
       Wire.begin(SDA_OLED, SCL_OLED);
     #elif BOARD_MODEL == BOARD_RETIA_DCBADGE
       // shared SPI bus; the radio driver may not have started it yet

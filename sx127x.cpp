@@ -100,7 +100,7 @@ bool sx127x::preInit() {
   pinMode(_ss, OUTPUT);
   digitalWrite(_ss, HIGH);
   
-  #if BOARD_MODEL == BOARD_T3S3 || BOARD_MODEL == BOARD_RETIA_DCBADGE
+  #if BOARD_MODEL == BOARD_T3S3 || BOARD_MODEL == BOARD_RETIA_DCBADGE || BOARD_MODEL == BOARD_RETIA_NIBBLE_OG
     SPI.begin(pin_sclk, pin_miso, pin_mosi, pin_cs);
   #else
     SPI.begin();

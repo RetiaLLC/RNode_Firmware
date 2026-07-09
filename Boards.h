@@ -122,6 +122,9 @@
   #define BOARD_HAD_COMM      0xFE // Hackaday Communicator Badge
   #define BOARD_RETIA_NIBBLE  0xFF // Retia Nibble Zero
   #define BOARD_RETIA_DCBADGE 0x47 // Retia 2024 DEF CON badge (ESP32-S3 + RFM95W)
+  #define BOARD_RETIA_NIBBLE_OG       0x48 // OG open-source Nibble (ESP32-S3 + RFM95)
+  #define BOARD_RETIA_NIBBLE_CONNECT  0x49 // Nibble Connect (ESP32-S3 + Wio-SX1262)
+  #define BOARD_RETIA_NIBBLE_SCONNECT 0x4A // Nibble Screen Connect (ESP32-S3 + Wio-SX1262 + SSD1306)
   #define MODEL_FE            0xFE // Homebrew board, max 17dBm output power
   #define MODEL_FF            0xFF // Homebrew board, max 14dBm output power
 
@@ -812,6 +815,136 @@
       const int DISPLAY_CS = 47;
       const int DISPLAY_DC = 40;
       const int DISPLAY_RST = 41;
+
+    #elif BOARD_MODEL == BOARD_RETIA_NIBBLE_OG
+      #define IS_ESP32S3 true
+      #define MODEM SX1276
+      #define HAS_EEPROM true
+      // Build with -DRETIA_NIBBLE_OG_OLED for the SSD1306 (SCL=10, SDA=11) variant
+      #if defined(RETIA_NIBBLE_OG_OLED)
+        #define HAS_DISPLAY true
+      #else
+        #define HAS_DISPLAY false
+      #endif
+      #define HAS_BLUETOOTH false
+      #define HAS_BLE true
+      #define HAS_CONSOLE true
+      #define HAS_PMU false
+      #define HAS_NP true
+      #define HAS_SD false
+      #define HAS_TCXO false
+      #define HAS_BUSY false
+      #define HAS_INPUT false
+      #define HAS_SLEEP false
+      #define DIO2_AS_RF_SWITCH false
+      #define CONFIG_UART_BUFFER_SIZE 6144
+      #define CONFIG_QUEUE_SIZE 6144
+      #define CONFIG_QUEUE_MAX_LENGTH 200
+      #define EEPROM_SIZE 296
+      #define EEPROM_OFFSET EEPROM_SIZE-EEPROM_RESERVED
+      #define BLE_MANUFACTURER "Retia"
+      #define BLE_MODEL "NibbleOG"
+
+      // RFM95W (SX1276), DIO1+ not connected
+      const int pin_miso = 7;
+      const int pin_mosi = 8;
+      const int pin_sclk = 6;
+      const int pin_cs = 9;
+      const int pin_reset = 4;
+      const int pin_dio = 5;
+      const int pin_busy = -1;
+      const int pin_tcxo_enable = -1;
+
+      const int pin_led_rx = 1;
+      const int pin_led_tx = 1;
+      const int pin_np = 21;
+
+    #elif BOARD_MODEL == BOARD_RETIA_NIBBLE_CONNECT
+      #define IS_ESP32S3 true
+      #define MODEM SX1262
+      #define HAS_EEPROM true
+      // Build with -DRETIA_NIBBLE_CONNECT_OLED for the SSD1306 (SCL=7, SDA=8) variant
+      #if defined(RETIA_NIBBLE_CONNECT_OLED)
+        #define HAS_DISPLAY true
+      #else
+        #define HAS_DISPLAY false
+      #endif
+      #define HAS_BLUETOOTH false
+      #define HAS_BLE true
+      #define HAS_CONSOLE true
+      #define HAS_PMU false
+      #define HAS_NP true
+      #define HAS_SD false
+      #define HAS_TCXO true
+      #define HAS_BUSY true
+      #define HAS_INPUT true
+      #define HAS_SLEEP false
+      #define DIO2_AS_RF_SWITCH true
+      #define CONFIG_UART_BUFFER_SIZE 6144
+      #define CONFIG_QUEUE_SIZE 6144
+      #define CONFIG_QUEUE_MAX_LENGTH 200
+      #define EEPROM_SIZE 296
+      #define EEPROM_OFFSET EEPROM_SIZE-EEPROM_RESERVED
+      #define BLE_MANUFACTURER "Retia"
+      #define BLE_MODEL "NibbleConnect"
+
+      // Wio-SX1262; note SCK/MISO are swapped vs the S3 defaults
+      const int pin_miso = 12;
+      const int pin_mosi = 11;
+      const int pin_sclk = 13;
+      const int pin_cs = 10;
+      const int pin_reset = 6;
+      const int pin_dio = 4;
+      const int pin_busy = 5;
+      const int pin_tcxo_enable = -1;
+
+      const int pin_led_rx = 1;
+      const int pin_led_tx = 1;
+      const int pin_np = 21;
+
+      // BOOT button
+      const int pin_btn_usr1 = 0;
+
+    #elif BOARD_MODEL == BOARD_RETIA_NIBBLE_SCONNECT
+      #define IS_ESP32S3 true
+      #define MODEM SX1262
+      #define HAS_EEPROM true
+      #define HAS_DISPLAY true
+      #define HAS_BLUETOOTH false
+      #define HAS_BLE true
+      #define HAS_CONSOLE true
+      #define HAS_PMU false
+      #define HAS_NP true
+      #define HAS_SD false
+      #define HAS_TCXO true
+      #define HAS_BUSY true
+      #define HAS_INPUT true
+      #define HAS_SLEEP false
+      #define DIO2_AS_RF_SWITCH true
+      #define CONFIG_UART_BUFFER_SIZE 6144
+      #define CONFIG_QUEUE_SIZE 6144
+      #define CONFIG_QUEUE_MAX_LENGTH 200
+      #define EEPROM_SIZE 296
+      #define EEPROM_OFFSET EEPROM_SIZE-EEPROM_RESERVED
+      #define BLE_MANUFACTURER "Retia"
+      #define BLE_MODEL "NibbleScreen"
+
+      // Wio-SX1262 on the S3 default SPI pins
+      const int pin_miso = 13;
+      const int pin_mosi = 11;
+      const int pin_sclk = 12;
+      const int pin_cs = 10;
+      const int pin_reset = 6;
+      const int pin_dio = 4;
+      const int pin_busy = 5;
+      const int pin_tcxo_enable = -1;
+
+      const int pin_led_rx = 9;
+      const int pin_led_tx = 9;
+      const int pin_np = 21;
+
+      // SW1
+      const int pin_btn_usr1 = 1;
 
     #elif BOARD_MODEL == BOARD_HAD_COMM
       #define IS_ESP32S3 true

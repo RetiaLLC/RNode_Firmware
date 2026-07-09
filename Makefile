@@ -146,6 +146,21 @@ firmware-retia_nibble: check_bt_buffers
 firmware-retia_nibble_oled: check_bt_buffers
 	arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=enabled" -e --build-property "build.partitions=no_ota" --build-property "upload.maximum_size=2097152" --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0xFF\" \"-DRETIA_NIBBLE_OLED\""
 
+firmware-retia_nibble_og: check_bt_buffers
+	arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=enabled" -e --build-property "build.partitions=no_ota" --build-property "upload.maximum_size=2097152" --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x48\""
+
+firmware-retia_nibble_og_oled: check_bt_buffers
+	arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=enabled" -e --build-property "build.partitions=no_ota" --build-property "upload.maximum_size=2097152" --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x48\" \"-DRETIA_NIBBLE_OG_OLED\""
+
+firmware-retia_nibble_connect: check_bt_buffers
+	arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=enabled" -e --build-property "build.partitions=no_ota" --build-property "upload.maximum_size=2097152" --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x49\""
+
+firmware-retia_nibble_connect_oled: check_bt_buffers
+	arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=enabled" -e --build-property "build.partitions=no_ota" --build-property "upload.maximum_size=2097152" --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x49\" \"-DRETIA_NIBBLE_CONNECT_OLED\""
+
+firmware-retia_nibble_sconnect: check_bt_buffers
+	arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=enabled" -e --build-property "build.partitions=no_ota" --build-property "upload.maximum_size=2097152" --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x4A\""
+
 firmware-retia_dcbadge_tft: check_bt_buffers
 	arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=enabled" -e --build-property "build.partitions=no_ota" --build-property "upload.maximum_size=2097152" --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x47\" \"-DRETIA_DCBADGE_TFT\""
 
