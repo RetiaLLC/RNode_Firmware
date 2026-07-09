@@ -96,6 +96,12 @@
   #define SCL_OLED 6
   #define SDA_OLED 5
   #define DISP_CUSTOM_ADDR true
+#elif BOARD_MODEL == BOARD_RETIA_NIBBLE
+  #define DISP_RST -1
+  #define DISP_ADDR 0x3C
+  #define SCL_OLED 7
+  #define SDA_OLED 8
+  #define DISP_CUSTOM_ADDR true
 #else
   #define DISP_RST -1
   #define DISP_ADDR 0x3C
@@ -322,6 +328,8 @@ bool display_init() {
     #elif BOARD_MODEL == BOARD_TBEAM_S_V1
       Wire.begin(SDA_OLED, SCL_OLED);
     #elif BOARD_MODEL == BOARD_XIAO_S3
+      Wire.begin(SDA_OLED, SCL_OLED);
+    #elif BOARD_MODEL == BOARD_RETIA_NIBBLE
       Wire.begin(SDA_OLED, SCL_OLED);
     #endif
 

@@ -120,7 +120,8 @@
   #define BOARD_GENERIC_ESP32 0x35
   #define BOARD_GENERIC_NRF52 0x50
   #define BOARD_HAD_COMM      0xFE // Hackaday Communicator Badge
-  #define BOARD_RETIA_NIBBLE  0xFF // Hackaday Communicator Badge
+  #define BOARD_RETIA_NIBBLE  0xFF // Retia Nibble Zero
+  #define BOARD_RETIA_DCBADGE 0x47 // Retia 2024 DEF CON badge (ESP32-S3 + RFM95W)
   #define MODEL_FE            0xFE // Homebrew board, max 17dBm output power
   #define MODEL_FF            0xFF // Homebrew board, max 14dBm output power
 
@@ -713,7 +714,12 @@
       #define IS_ESP32S3 true
       #define MODEM SX1262
       #define HAS_EEPROM true
-      #define HAS_DISPLAY false
+      // Build with -DRETIA_NIBBLE_OLED for the SSD1306 (SCL=7, SDA=8) variant
+      #if defined(RETIA_NIBBLE_OLED)
+        #define HAS_DISPLAY true
+      #else
+        #define HAS_DISPLAY false
+      #endif
       #define HAS_BLUETOOTH false
       #define HAS_BLE true
       #define HAS_CONSOLE true
@@ -751,6 +757,50 @@
 
       // pins for buttons on Retia Nibble
       const int pin_btn_usr1 = 1;
+
+    #elif BOARD_MODEL == BOARD_RETIA_DCBADGE
+      #define IS_ESP32S3 true
+      #define MODEM SX1276
+      #define HAS_EEPROM true
+      #define HAS_DISPLAY false
+      #define HAS_BLUETOOTH false
+      #define HAS_BLE true
+      #define HAS_CONSOLE true
+      #define HAS_PMU false
+      #define HAS_NP true
+      #define HAS_SD false
+      #define HAS_TCXO false
+      #define HAS_BUSY false
+      #define HAS_INPUT true
+      #define HAS_SLEEP false
+      #define DIO2_AS_RF_SWITCH false
+      #define CONFIG_UART_BUFFER_SIZE 6144
+      #define CONFIG_QUEUE_SIZE 6144
+      #define CONFIG_QUEUE_MAX_LENGTH 200
+      #define EEPROM_SIZE 296
+      #define EEPROM_OFFSET EEPROM_SIZE-EEPROM_RESERVED
+      #define BLE_MANUFACTURER "Retia"
+      #define BLE_MODEL "DCBadge"
+
+      // RFM95W (SX1276) on shared SPI bus; DIO1+ not routed on this board
+      const int pin_miso = 12;
+      const int pin_mosi = 11;
+      const int pin_sclk = 13;
+      const int pin_cs = 48;
+      const int pin_reset = 38;
+      const int pin_dio = 21;
+      const int pin_busy = -1;
+      const int pin_tcxo_enable = -1;
+
+      // Green debug LED shared for RX/TX indication
+      const int pin_led_rx = 2;
+      const int pin_led_tx = 2;
+
+      // First pixel of the 10-LED ambient strip as the status NeoPixel
+      const int pin_np = 17;
+
+      // Button A (SW8), active low
+      const int pin_btn_usr1 = 8;
 
     #elif BOARD_MODEL == BOARD_HAD_COMM
       #define IS_ESP32S3 true
