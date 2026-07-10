@@ -774,7 +774,14 @@
       #endif
       #define HAS_BLUETOOTH false
       #define HAS_BLE true
-      #define HAS_CONSOLE true
+      #if defined(RETIA_LAUNCHER_GUEST)
+        // Badge-launcher guest: Console.h's SPIFFS.begin(true) format-on-fail
+        // would wipe another firmware's partition on the shared launcher
+        // table (default label = first spiffs-subtype row). Compile it out.
+        #define HAS_CONSOLE false
+      #else
+        #define HAS_CONSOLE true
+      #endif
       #define HAS_PMU false
       #define HAS_NP true
       #define HAS_SD false
