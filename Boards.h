@@ -125,6 +125,7 @@
   #define BOARD_RETIA_NIBBLE_OG       0x48 // OG open-source Nibble (ESP32-S3 + RFM95)
   #define BOARD_RETIA_NIBBLE_CONNECT  0x49 // Nibble Connect (ESP32-S3 + Wio-SX1262)
   #define BOARD_RETIA_NIBBLE_SCONNECT 0x4A // Nibble Screen Connect (ESP32-S3 + Wio-SX1262 + SSD1306)
+  #define BOARD_RETIA_NEWSHEEN        0x4B // Newsheen / Pusheen puck (ESP32-S3 N16R2 + Wio-SX1262, headless, 8x WS2812)
   #define MODEL_FE            0xFE // Homebrew board, max 17dBm output power
   #define MODEL_FF            0xFF // Homebrew board, max 14dBm output power
 
@@ -760,6 +761,56 @@
 
       // pins for buttons on Retia Nibble
       const int pin_btn_usr1 = 1;
+
+    #elif BOARD_MODEL == BOARD_RETIA_NEWSHEEN
+      // Newsheen / Pusheen puck: ESP32-S3-WROOM-1 N16R2 (16MB flash / 2MB quad PSRAM),
+      // Seeed Wio-SX1262 LoRa, 8x WS2812B (GPIO16, via U5 level shifter), headless (no OLED).
+      #define IS_ESP32S3 true
+      #define MODEM SX1262
+      #define HAS_EEPROM true
+      #define HAS_DISPLAY false
+      #define HAS_BLUETOOTH false
+      #define HAS_BLE true
+      #define HAS_CONSOLE true
+      #define HAS_PMU false
+      #define HAS_NP true
+      #define HAS_SD false
+      #define HAS_TCXO true
+      #define HAS_BUSY true
+      #define HAS_INPUT true
+      #define HAS_SLEEP false
+      #define DIO2_AS_RF_SWITCH true
+      #define CONFIG_UART_BUFFER_SIZE 6144
+      #define CONFIG_QUEUE_SIZE 6144
+      #define CONFIG_QUEUE_MAX_LENGTH 200
+      #define EEPROM_SIZE 296
+      #define EEPROM_OFFSET EEPROM_SIZE-EEPROM_RESERVED
+      #define BLE_MANUFACTURER "retia"
+      #define BLE_MODEL "newsheen"
+
+      // Wio-SX1262 external RF switch / RX enable (THE key radio pin on this board)
+      #define HAS_RF_SWITCH_RX_TX true
+      const int pin_rxen = 14;
+      const int pin_txen = -1;
+
+      const int pin_miso = 12;
+      const int pin_mosi = 11;
+      const int pin_sclk = 13;
+      const int pin_cs = 10;
+      const int pin_reset = 9;
+      const int pin_dio = 21;   // DIO1
+      const int pin_busy = 47;
+      const int pin_tcxo_enable = -1;   // TCXO powered from SX1262 DIO3
+
+      // LED: plain debug LED D14 (active-high)
+      const int pin_led_rx = 48;
+      const int pin_led_tx = 48;
+      // 8x WS2812B status ring on GPIO16 (via U5 level shifter)
+      #define ESP32_NP_PIN 16
+      const int pin_np = ESP32_NP_PIN;
+
+      // user button SW3 (active-low, 10K pull-up)
+      const int pin_btn_usr1 = 17;
 
     #elif BOARD_MODEL == BOARD_RETIA_DCBADGE
       #define IS_ESP32S3 true
