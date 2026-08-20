@@ -1,0 +1,16 @@
+{
+  "comment": "Retia RNode board matrix. Each entry compiles one variant and produces a merged 0x0 factory image (bootloader+partitions+app+SPIFFS console), both pre-provisioned (canonical NVS at 0x9000 -> boots ready) and unprovisioned. Asset names are VERSIONLESS and STABLE (the scriptkitty channel matches by name). Add a board by adding an entry; CI builds every one as an upstream-breakage check.",
+  "base_fqbn": "esp32:esp32:esp32s3",
+  "boards": [
+    { "id": "nibble-zero",         "asset": "rnode-nibble-zero",         "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0xFF",                                 "flash_size": "4MB",  "radio": "sx1262" },
+    { "id": "nibble-zero-oled",    "asset": "rnode-nibble-zero-oled",    "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0xFF -DRETIA_NIBBLE_OLED",             "flash_size": "4MB",  "radio": "sx1262" },
+    { "id": "newsheen",            "asset": "rnode-newsheen",            "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled,FlashSize=16M", "flags": "-DBOARD_MODEL=0x4B",                              "flash_size": "16MB", "radio": "sx1262" },
+    { "id": "nibble-og",           "asset": "rnode-nibble-og",           "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0x48",                                 "flash_size": "4MB",  "radio": "sx1276" },
+    { "id": "nibble-og-oled",      "asset": "rnode-nibble-og-oled",      "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0x48 -DRETIA_NIBBLE_OG_OLED",          "flash_size": "4MB",  "radio": "sx1276" },
+    { "id": "nibble-connect",      "asset": "rnode-nibble-connect",      "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0x49",                                 "flash_size": "4MB",  "radio": "sx1262" },
+    { "id": "nibble-connect-oled", "asset": "rnode-nibble-connect-oled", "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0x49 -DRETIA_NIBBLE_CONNECT_OLED",     "flash_size": "4MB",  "radio": "sx1262" },
+    { "id": "nibble-sconnect",     "asset": "rnode-nibble-sconnect",     "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0x4A",                                 "flash_size": "4MB",  "radio": "sx1262" },
+    { "id": "dcbadge",             "asset": "rnode-dcbadge",             "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0x47",                                 "flash_size": "8MB",  "radio": "sx1276" },
+    { "id": "dcbadge-tft",         "asset": "rnode-dcbadge-tft",         "fqbn_opts": "CDCOnBoot=cdc,PSRAM=enabled",           "flags": "-DBOARD_MODEL=0x47 -DRETIA_DCBADGE_TFT",             "flash_size": "8MB",  "radio": "sx1276" }
+  ]
+}

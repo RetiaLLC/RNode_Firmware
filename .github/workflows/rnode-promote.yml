@@ -1,0 +1,109 @@
+name: RNode Promote
+
+# Mark a per-board RNode build VERIFIED after real hardware verification.
+#
+# Channel contract: prerelease = untested auto-build; full release = verified. This:
+#   1. attaches verification-<board>.json evidence for each board actually flashed+checked
+#   2. flips the release prerelease -> full (so scriptkitty serves it as the default)
+#   3. pings scriptkitty.sh so the change goes live
+#
+# Verification is PER BOARD. Promoting `newsheen` only verifies the newsheen asset; every
+# other board on the same release stays untested until its own verification-*.json is attached.
+# Never promote a build nobody flashed.
+#
+#   gh workflow run rnode-promote.yml -f tag=rnode-v1.85-sk.1 \
+#      -f device=newsheen -f method=human -f notes="boots ready; radio online + TX (txb 0->501)"
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to promote (e.g. rnode-v1.85-sk.1)"
+        type: string
+        required: true
+      device:
+        description: "Which board build was verified (board id, or all)"
+        type: choice
+        options:
+          - nibble-zero
+          - nibble-zero-oled
+          - newsheen
+          - nibble-og
+          - nibble-og-oled
+          - nibble-connect
+          - nibble-connect-oled
+          - nibble-sconnect
+          - dcbadge
+          - dcbadge-tft
+          - all
+        required: true
+      method:
+        description: "How it was verified"
+        type: choice
+        options: [human, workbench]
+        required: true
+      notes:
+        description: "What was checked (boots ready, radio online, TX…)"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Attach verification evidence + flip to full release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          DEVICE: ${{ inputs.device }}
+          METHOD: ${{ inputs.method }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName \
+            || { echo "::error::release $TAG not found"; exit 1; }
+
+          if [ "$DEVICE" = "all" ]; then
+            DEVICES=$(python3 -c "import json;print(' '.join(b['id'] for b in json.load(open('retia/boards.json'))['boards']))")
+          else
+            DEVICES="$DEVICE"
+          fi
+          for d in $DEVICES; do
+            python3 - "$d" <<'PY'
+          import json, os, sys, datetime
+          d = sys.argv[1]
+          json.dump({
+              "target": d,
+              "method": os.environ["METHOD"],
+              "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
+              "verified_by": os.environ.get("GITHUB_ACTOR", ""),
+              "notes": os.environ.get("NOTES", ""),
+              "workflow_run": f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+          }, open(f"verification-{d}.json", "w"), indent=2)
+          PY
+            gh release upload "$TAG" "verification-$d.json" --repo "$GITHUB_REPOSITORY" --clobber
+            echo "attached verification-$d.json ($METHOD)"
+          done
+
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease=false
+          echo "$TAG promoted to VERIFIED for: $DEVICES"
+
+      - name: Ping scriptkitty.sh flasher
+        env:
+          SK_TOKEN: ${{ secrets.SCRIPTKITTY_DISPATCH_TOKEN }}
+        run: |
+          if [ -n "${SK_TOKEN:-}" ]; then
+            curl -sf -X POST \
+              -H "Authorization: Bearer $SK_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/RetiaLLC/scriptkitty.sh/dispatches \
+              -d '{"event_type":"channel-release"}' \
+              && echo "flasher rebuild triggered" \
+              || echo "::warning::dispatch to scriptkitty.sh failed — site picks this up on its weekly cron"
+          else
+            echo "::notice::SCRIPTKITTY_DISPATCH_TOKEN not set — trigger build-deploy on scriptkitty.sh manually or wait for its weekly cron"
+          fi

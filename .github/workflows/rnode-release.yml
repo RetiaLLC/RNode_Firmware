@@ -1,0 +1,124 @@
+name: RNode Release
+
+# Compiles EVERY Retia board variant (retia/boards.json) and publishes them as a single
+# UNTESTED prerelease. This is the gate: if a variant stops compiling (toolchain drift, or a
+# manually-merged upstream RNode change), the run fails and NOTHING ships. Auto-builds are
+# always prereleases; a human promotes one to verified with rnode-promote.yml after flashing
+# real hardware. Upstream (markqvist) is NEVER auto-merged — this fork carries board patches
+# in-tree; drift is surfaced as a notice so a human can merge it deliberately.
+on:
+  schedule:
+    - cron: "23 8 * * 1"          # Mondays 08:23 UTC — rebuild to catch toolchain/upstream drift
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "Why this build (shown in the release notes)"
+        required: false
+        default: ""
+      force:
+        description: "Cut even if this version+sk tag already exists"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rnode-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install esptool
+        run: pip install "esptool==5.*"
+
+      - name: Install arduino-cli + esp32 core 2.0.17
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR="$HOME/.local/bin" sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@2.0.17
+
+      - name: Resolve version and next -sk.N
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          set -euo pipefail
+          MAJ=$(grep -E "#define\s+MAJ_VERS" Config.h | grep -oE "0x[0-9A-Fa-f]+")
+          MIN=$(grep -E "#define\s+MIN_VERS" Config.h | grep -oE "0x[0-9A-Fa-f]+")
+          V="$(printf '%d.%d' "$MAJ" "$MIN")"
+          # next -sk.N = (highest existing rnode-v$V-sk.N) + 1
+          N=1
+          EXIST=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName \
+                  --jq ".[].tagName | select(startswith(\"rnode-v$V-sk.\"))" 2>/dev/null || true)
+          if [ -n "$EXIST" ]; then
+            HIGH=$(echo "$EXIST" | sed -E "s/.*-sk\.//" | sort -n | tail -1)
+            N=$((HIGH + 1))
+          fi
+          TAG="rnode-v$V-sk.$N"
+          echo "version=$V"   >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"      >> "$GITHUB_OUTPUT"
+          echo "Building $TAG"
+
+      - name: Upstream drift check (notice only — never auto-merge)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          OURS="${{ steps.ver.outputs.version }}"
+          UP=$(gh api repos/markqvist/RNode_Firmware/contents/Config.h --jq .content 2>/dev/null | base64 -d \
+               | awk '/MAJ_VERS/{m=strtonum($3)} /MIN_VERS/{n=strtonum($3)} END{printf "%d.%d", m, n}')
+          echo "Our fork: $OURS   Upstream markqvist: ${UP:-unknown}"
+          if [ -n "${UP:-}" ] && [ "$UP" != "$OURS" ]; then
+            echo "::warning::Upstream RNode is $UP but this fork is $OURS. Merge upstream deliberately (board patches are in-tree) and re-run; not auto-merged."
+          fi
+
+      - name: Build all board variants
+        run: python3 retia/build.py --version "${{ steps.ver.outputs.version }}"
+
+      - name: Publish prerelease (untested)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.ver.outputs.tag }}"
+          {
+            echo "> ⚠ **Untested auto-build.** Every Retia RNode variant compiled from this fork, but"
+            echo "> not yet hardware-verified. Once a board is flashed + verified, promote it with"
+            echo "> \`rnode-promote.yml\` to make it the default download for that board on scriptkitty.sh."
+            echo ""
+            [ -n "${{ github.event.inputs.notes }}" ] && echo "${{ github.event.inputs.notes }}" && echo ""
+            echo "Reticulum **RNode ${{ steps.ver.outputs.version }}** factory images — one-click flash at https://scriptkitty.sh."
+            echo "Each \`*.factory.bin\` is a merged 0x0 image (bootloader + partitions + app + SPIFFS console);"
+            echo "the default (no \`-unprovisioned\` suffix) is pre-provisioned so it boots as a ready RNode with"
+            echo "no rnodeconf step. Built by \`.github/workflows/rnode-release.yml\`."
+            echo ""
+            echo "| Board | Asset | Provisioned | sha256 |"
+            echo "|---|---|---|---|"
+            python3 - <<'PY'
+          import json
+          m = json.load(open("dist/build-manifest.json"))
+          for b in m["builds"]:
+              for img in b["images"]:
+                  print(f"| {b['id']} | {img['asset']} | {'yes' if img['provisioned'] else 'no'} | `{img['sha256']}` |")
+          PY
+          } > notes.md
+          gh release create "$TAG" dist/*.factory.bin \
+            --repo "$GITHUB_REPOSITORY" --title "RNode ${{ steps.ver.outputs.version }} ($TAG)" \
+            --notes-file notes.md --prerelease
+          echo "Published $TAG (prerelease / untested)"
