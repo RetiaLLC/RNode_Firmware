@@ -43,6 +43,7 @@ jobs:
       - name: Install arduino-cli + esp32 core 2.0.17
         run: |
           set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
           curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR="$HOME/.local/bin" sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.local/bin:$PATH"
